@@ -1,3 +1,4 @@
+import { timingSafeEqual } from "crypto";
 import type { NextAuthOptions } from "next-auth";
 import GoogleProvider from "next-auth/providers/google";
 import CredentialsProvider from "next-auth/providers/credentials";
@@ -15,28 +16,52 @@ export const googleConfigured = Boolean(
 );
 
 /**
- * Local development sign-in.
+ * Sign-in that doesn't depend on Google.
  *
  * Every meaningful route (`/api/curve`, `/api/profile`) calls getServerSession,
  * so with no provider configured the app loads but cannot be used at all —
  * clicking sign-in just lands on /api/auth/error. That makes the project
- * impossible to work on without first registering an OAuth client.
+ * impossible to work on until an OAuth client exists and its redirect URI is
+ * registered, which is a console step no amount of local config can substitute
+ * for. This provider is the escape hatch.
  *
- * So in development only, we offer a name-only credentials provider. It is
- * gated on NODE_ENV and refuses to exist in a production build, so it cannot
- * become an authentication bypass on a deployed site.
+ * Two modes, because a deployed URL is public and a laptop isn't:
+ *
+ *   local  — name only. Zero friction; nobody else can reach localhost.
+ *   hosted — name + the access code in VC_ACCESS_CODE. Unset in production
+ *            (the default) the provider does not exist at all, so it can never
+ *            become an accidental open door on a public deployment.
  */
+const accessCode = process.env.VC_ACCESS_CODE?.trim() || "";
+const isProduction = process.env.NODE_ENV === "production";
+
 const devLoginEnabled =
-  process.env.NODE_ENV !== "production" &&
-  process.env.VC_DEV_LOGIN !== "false";
+  process.env.VC_DEV_LOGIN !== "false" &&
+  (isProduction ? accessCode.length > 0 : true);
+
+/**
+ * Timing-safe compare — a plain `===` on a secret leaks its length and prefix
+ * through response timing. Cheap to do correctly, so do it correctly.
+ */
+function codeMatches(supplied: string): boolean {
+  if (!accessCode) return false;
+  const a = Buffer.from(supplied);
+  const b = Buffer.from(accessCode);
+  if (a.length !== b.length) return false;
+  return timingSafeEqual(a, b);
+}
 
 const devProvider = CredentialsProvider({
   id: "dev",
-  name: "Continue as a local test user",
+  name: isProduction ? "Sign in with an access code" : "Continue as a local test user",
   credentials: {
     name: { label: "Name", type: "text", placeholder: "Shivang" },
+    ...(isProduction
+      ? { code: { label: "Access code", type: "password" } }
+      : {}),
   },
   async authorize(credentials) {
+    if (isProduction && !codeMatches((credentials?.code || "").trim())) return null;
     const name = (credentials?.name || "").trim() || "Local Tester";
     // Stable id per name, so the same name is the same soul across restarts.
     const id = `dev-${Buffer.from(name.toLowerCase()).toString("hex").slice(0, 24)}`;

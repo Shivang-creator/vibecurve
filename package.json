@@ -9,7 +9,8 @@
     "start": "next start",
     "lint": "next lint",
     "setup:ddb": "node --env-file=.env.local scripts/setup-ddb.mjs",
-    "db:status": "node --env-file=.env.local scripts/ddb-status.mjs"
+    "db:status": "node --env-file=.env.local scripts/ddb-status.mjs",
+    "check:oauth": "node scripts/check-oauth.mjs"
   },
   "dependencies": {
     "@aws-sdk/client-dynamodb": "^3.1075.0",
