@@ -8,6 +8,20 @@ import { getEmoji } from "@/lib/session";
 
 const AUTH_ENABLED = process.env.NEXT_PUBLIC_AUTH_ENABLED === "true";
 
+/**
+ * Which provider the sign-in button uses.
+ *
+ * In development without an OAuth client, signIn("google") lands on
+ * /api/auth/error and the app cannot be used at all. Fall back to the
+ * local-only "dev" provider so the product is workable before credentials
+ * exist. A production build always uses Google.
+ */
+const SIGN_IN_PROVIDER =
+  process.env.NODE_ENV !== "production" &&
+  process.env.NEXT_PUBLIC_GOOGLE_CONFIGURED !== "true"
+    ? "dev"
+    : "google";
+
 function GoogleMark() {
   return (
     <svg width="16" height="16" viewBox="0 0 48 48" aria-hidden>
@@ -68,7 +82,7 @@ export default function AuthButton({ className = "" }: { className?: string }) {
           animate={{ opacity: 1, scale: 1 }}
           whileHover={{ y: -1 }}
           whileTap={{ scale: 0.97 }}
-          onClick={() => signIn("google")}
+          onClick={() => signIn(SIGN_IN_PROVIDER)}
           className={`flex items-center gap-2 rounded-button border border-hair bg-card px-4 py-2 text-sm font-medium text-ink shadow-soft transition hover:shadow-lift ${className}`}
         >
           <GoogleMark />
